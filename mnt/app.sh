@@ -1,9 +1,9 @@
 ifconfig eth0 192.168.1.161
 ifconfig lo up
-#telnetd&
+telnetd&
 
-#mkdir -p /mnt/mtd1
-#mount -t nfs -o nolock -o tcp 192.168.1.177:/opt/nfs /mnt/mtd1
+mkdir -p /mnt/mtd1
+mount -t nfs -o nolock -o tcp 192.168.1.177:/opt/nfs /mnt/mtd1
 
 #############################################
 rm -rf /mnt/mtd/modules/
