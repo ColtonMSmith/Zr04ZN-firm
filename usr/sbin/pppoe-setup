@@ -1,0 +1,172 @@
+#!/bin/sh
+#***********************************************************************
+#
+# pppoe-config
+#
+# All-purpose slicing/dicing shell script to configure rp-pppoe.
+#
+# LIC: GPL
+#
+# Copyright (C) 2012 xudele.
+#
+# xudele
+#usage:  pppoe-config username passwd ethnet DNSTYPE
+#DNSTYPE: server---from the server, ""--- no change   other--userown dns
+#default: DNSTYPE ---server
+#***********************************************************************
+
+# From AUTOCONF
+prefix=/usr
+exec_prefix=${prefix}
+
+# Paths to programs
+#IFCONFIG=/sbin/ifconfig
+#PPPD=/usr/sbin/pppd
+#PPPOE=${exec_prefix}/sbin/pppoe
+ECHO=/bin/echo
+#LOGGER="/usr/bin/logger -t `basename $0`"
+# Set to "C" locale so we can parse messages from commands
+LANG=C
+export LANG
+
+CONFIG=/etc/ppp/pppoe.conf
+#CONFIG=/mnt/mtd/pppoe.conf
+# Protect created files
+umask 077
+U=""
+E=""
+DNS_TYPE=""
+copy() {
+    cp $1 $2
+    if [ "$?" != 0 ] ; then
+	$ECHO "*** Error copying $1 to $2"
+	$ECHO "*** Quitting."
+	exit 1
+    fi
+}
+
+#add by xudele -----2012-08
+
+#judge the num of commend line param is right
+#example ./pppoe-config username passwd eth0 server/NULL/other
+if [ "$#" = 3 ] ; then
+    U="$1"
+    E="$3"
+    DNS_TYPE=""	
+else
+    if [ "$#" = 4 ] ; then
+	U="$1"
+	E="$3"
+	DNS_TYPE="$4"
+    else	
+	$ECHO "parameters error"	
+	exit 1	
+    fi	
+fi
+#endadd
+
+# Prototype config file must exist /etc/ppp/pppoe.conf
+#check whether is pppoe.conf exist or not    ----xudele
+if [ ! -r "$CONFIG" ] ; then
+    $ECHO "Oh, dear, I don't see the file '$CONFIG' anywhere.  Please"
+    $ECHO "re-install the PPPoE client."
+    exit 1
+fi
+
+export CONFIG
+. $CONFIG
+
+#add by xudele --- 2012-08
+rm -rf $CONFIG-bak
+copy $CONFIG $CONFIG-bak
+
+#judge /etc/ppp/pppoe.conf is can write
+if test -w "$CONFIG" ; then
+    $ECHO "$CONFIG can write,right!"
+else	
+    $ECHO "$CONFIG can not write,error!"
+    exit 1
+fi
+#endadd
+
+if [ "$DNS_TYPE" = "server" ] ; then
+    echo "server***"
+    DNSTYPE=SERVER
+    DNS1=""
+    PEERDNS=yes
+else
+    PEERDNS=no
+    if [ "$DNS_TYPE" = "" ] ; then
+	DNSTYPE=NOCHANGE
+	DNS1=""
+    else
+	DNSTYPE=SPECIFY
+	DNS1=$DNS_TYPE
+    fi
+fi
+
+if [ -d /var/run ] ; then
+    VARRUN=/var/run
+else
+    VARRUN=/etc/ppp
+fi
+       
+# Some #$(*& ISP's use a slash in the user name...
+#let all_config in pppoe.conf files
+#sed -e "s&^USER=.*&USER=$USER&" \
+#sed  -e "s&^ETH=.*&ETH=$ETH&" \
+
+sed  -e "s/^USER=.*/USER=$U/" \
+     -e "s/^ETH=.*/ETH=$E/" \
+     -e "s&^PIDFILE=.*&PIDFILE=\"$VARRUN/\$CF_BASE-pppoe.pid\"&" \
+     -e "s/^FIREWALL=.*/FIREWALL=$FIREWALL/" \
+     -e "s/^DEMAND=.*/DEMAND=$DEMAND/" \
+     -e "s/^DNSTYPE=.*/DNSTYPE=$DNSTYPE/" \
+     -e "s/^DNS1=.*/DNS1=$DNS1/" \
+     -e "s/^DNS2=.*/DNS2=$DNS2/" \
+     -e "s/^PEERDNS=.*/PEERDNS=$PEERDNS/" \
+     < $CONFIG-bak > $CONFIG
+if [ $? != 0 ] ; then
+    $ECHO "** Error modifying $CONFIG"
+    $ECHO "** Quitting"
+    exit 1
+fi
+$ECHO "FDAFDA"
+if [ "$DNS1" != "" ] ; then
+    if [ "$DNS1" != "server" ] ; then
+	$ECHO "Adjusting /etc/resolv.conf"
+	if [ -r /etc/resolv.conf ] ; then
+	    grep -s "MADE-BY-RP-PPPOE" /etc/resolv.conf > /dev/null 2>&1
+	    if [ "$?" != 0 ] ; then
+		$ECHO "  (But first backing it up to /etc/resolv.conf-bak)"
+		copy /etc/resolv.conf /etc/resolv.conf-bak
+	    fi
+	fi
+	$ECHO "# MADE-BY-RP-PPPOE" > /etc/resolv.conf
+	$ECHO "nameserver $DNS1" >> /etc/resolv.conf
+	if [ "$DNS2" != "" ] ; then
+	    $ECHO "nameserver $DNS2" >> /etc/resolv.conf
+	fi
+    fi
+fi
+
+$ECHO "Adjusting /etc/ppp/pap-secrets and /etc/ppp/chap-secrets"
+if [ -r /etc/ppp/pap-secrets ] ; then
+    $ECHO "  (But first backing it up to /etc/ppp/pap-secrets-bak)"
+    copy /etc/ppp/pap-secrets /etc/ppp/pap-secrets-bak
+else
+    cp /dev/null /etc/ppp/pap-secrets-bak
+fi
+if [ -r /etc/ppp/chap-secrets ] ; then
+    $ECHO "  (But first backing it up to /etc/ppp/chap-secrets-bak)"
+    copy /etc/ppp/chap-secrets /etc/ppp/chap-secrets-bak
+else
+    cp /dev/null /etc/ppp/chap-secrets-bak
+fi
+
+egrep -v "^$U|^\"$U\"" /etc/ppp/pap-secrets-bak > /etc/ppp/pap-secrets
+$ECHO "\"$U\"	*	\"$2\" *" >> /etc/ppp/pap-secrets
+egrep -v "^$U|^\"$U\"" /etc/ppp/chap-secrets-bak > /etc/ppp/chap-secrets
+$ECHO "\"$U\"	*	\"$2\" *" >> /etc/ppp/chap-secrets
+
+exit 0

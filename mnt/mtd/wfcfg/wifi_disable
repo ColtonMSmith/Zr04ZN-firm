@@ -1,0 +1,8 @@
+#!/bin/sh
+WPA=/var/run/wpa_supplicant
+ ifconfig wlan0 down
+ if [  -e "$WPA" ] ; then
+ 	rm -r $WPA
+	killall wpa_supplicant
+ fi
+ ifconfig eth0 up

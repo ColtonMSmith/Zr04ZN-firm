@@ -1,0 +1,1 @@
+cd /mnt/mtd/nts/ && ./ntsclientcon_hisiv300 &
